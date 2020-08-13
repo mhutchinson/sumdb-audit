@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	backoff "github.com/cenkalti/backoff/v4"
-	"github.com/google/trillian/merkle/compact"
+	"github.com/mhutchinson/sumdb-audit/compact"
 	"golang.org/x/mod/sumdb/tlog"
 	"golang.org/x/sync/errgroup"
 )
