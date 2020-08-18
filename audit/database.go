@@ -4,8 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 )
+
+// Metadata is the semantic data that is contained within the leaves of the log.
+type Metadata struct {
+	module, version, repoHash, modHash string
+}
 
 // Database provides read/write access to the local copy of the SumDB.
 type Database struct {
@@ -29,7 +33,10 @@ func (d *Database) Init() error {
 	if _, err := d.db.Exec("CREATE TABLE IF NOT EXISTS leaves (id INTEGER PRIMARY KEY, data BLOB)"); err != nil {
 		return err
 	}
-	_, err := d.db.Exec("CREATE TABLE IF NOT EXISTS tiles (height INTEGER, level INTEGER, offset INTEGER, hashes BLOB, PRIMARY KEY (height, level, offset))")
+	if _, err := d.db.Exec("CREATE TABLE IF NOT EXISTS tiles (height INTEGER, level INTEGER, offset INTEGER, hashes BLOB, PRIMARY KEY (height, level, offset))"); err != nil {
+		return err
+	}
+	_, err := d.db.Exec("CREATE TABLE IF NOT EXISTS leafMetadata (id INTEGER PRIMARY KEY, module TEXT, version TEXT, fileshash TEXT, modhash TEXT)")
 	return err
 }
 
@@ -44,7 +51,7 @@ func (d *Database) GetHead() (int64, error) {
 func (d *Database) WriteLeaves(ctx context.Context, start int64, leaves [][]byte) error {
 	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Fatalf("BeginTx: %v", err)
+		return fmt.Errorf("BeginTx: %v", err)
 	}
 	for li, l := range leaves {
 		lidx := int64(li) + start
@@ -70,6 +77,19 @@ func (d *Database) GetLeaves(start int64, count int) ([][]byte, error) {
 		return nil, fmt.Errorf("failed to read %d leaves, only found %d", count, len(res))
 	}
 	return res, err
+}
+
+// SetLeafMetadata sets the metadata for a contiguous batch of leaves.
+func (d *Database) SetLeafMetadata(ctx context.Context, start int64, metadata []Metadata) error {
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("BeginTx: %v", err)
+	}
+	for mi, m := range metadata {
+		midx := int64(mi) + start
+		tx.Exec("INSERT INTO leafMetadata (id, module, version, fileshash, modhash) VALUES (?, ?, ?, ?, ?)", midx, m.module, m.version, m.repoHash, m.modHash)
+	}
+	return tx.Commit()
 }
 
 // GetTile gets the leaf hashes for the given tile, or returns an error.
