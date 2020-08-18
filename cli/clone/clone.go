@@ -56,8 +56,12 @@ func main() {
 	if err := s.CheckRootHash(ctx, checkpoint); err != nil {
 		log.Fatalf("CheckRootHash: %v", err)
 	}
-	log.Printf("Cloned successfully. Tree size is %d, hash is %x (%s).", checkpoint.N, checkpoint.Hash[:], checkpoint.Hash)
+	log.Printf("Cloned successfully. Tree size is %d, hash is %x (%s). Processing data...", checkpoint.N, checkpoint.Hash[:], checkpoint.Hash)
 
+	if err := s.ProcessMetadata(ctx, checkpoint); err != nil {
+		log.Fatalf("ProcessMetadata: %v", err)
+	}
+	log.Printf("Leaf data processed.")
 	if *extraV {
 		log.Printf("Performing extra validation on tiles...")
 		if err := s.VerifyTiles(ctx, checkpoint); err != nil {

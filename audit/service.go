@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/mhutchinson/sumdb-audit/compact"
@@ -221,6 +222,41 @@ func (s *Service) VerifyTiles(ctx context.Context, checkpoint *tlog.Tree) error 
 				}
 			}
 			offset++
+		}
+	}
+	return nil
+}
+
+// ProcessMetadata parses the leaf data and writes the semantic data into the DB.
+func (s *Service) ProcessMetadata(ctx context.Context, checkpoint *tlog.Tree) error {
+	tileWidth := 1 << s.height
+	metadata := make([]Metadata, tileWidth)
+	// TODO: skip to head of metadata
+	for offset := 0; offset < int(checkpoint.N/int64(tileWidth)); offset++ {
+		leafOffset := int64(offset) * int64(tileWidth)
+		hashes, err := s.localDB.GetLeaves(leafOffset, tileWidth)
+		if err != nil {
+			return err
+		}
+		for i, h := range hashes {
+			leafID := leafOffset + int64(i)
+
+			lines := strings.Split(string(h), "\n")
+			tokens := strings.Split(lines[0], " ")
+			module, version, repoHash := tokens[0], tokens[1], tokens[2]
+			tokens = strings.Split(lines[1], " ")
+			if got, want := tokens[0], module; got != want {
+				return fmt.Errorf("mismatched module names at %d: (%s, %s)", leafID, got, want)
+			}
+			if got, want := tokens[1][:len(version)], version; got != want {
+				return fmt.Errorf("mismatched version names at %d: (%s, %s)", leafID, got, want)
+			}
+			modHash := tokens[2]
+
+			metadata[i] = Metadata{module, version, repoHash, modHash}
+		}
+		if err := s.localDB.SetLeafMetadata(ctx, leafOffset, metadata); err != nil {
+			return err
 		}
 	}
 	return nil
