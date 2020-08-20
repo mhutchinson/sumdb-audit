@@ -1,5 +1,8 @@
 # Auditor / Cloner for SumDB
 
+The canonical location for this project is now:
+https://github.com/google/trillian-examples/tree/master/sumdbaudit
+
 The clone tool downloads all entries from the [Go SumDB](https://blog.golang.org/module-mirror-launch) into a local SQLite database, and verifies that the downloaded data matches the log commitment.
 
 ## Running
